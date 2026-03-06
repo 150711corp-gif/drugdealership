@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Помощник приёма лекарств</title>
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Помощник приёма лекарств</h1>
+      <p>Простой интерфейс для пожилых пользователей и их близких</p>
+    </header>
+
+    <main class="layout">
+      <section class="card" id="profileSection">
+        <h2>Профиль</h2>
+        <label>Кому назначение</label>
+        <select id="userSelect"></select>
+        <div class="row">
+          <input id="userName" placeholder="Имя пользователя">
+          <input id="userColor" type="color" value="#1d4ed8">
+        </div>
+        <textarea id="userNote" placeholder="Заметка"></textarea>
+        <button class="btn primary" onclick="saveUser()">Сохранить профиль</button>
+      </section>
+
+      <section class="card" id="prescriptionSection">
+        <h2>Назначения</h2>
+        <div class="row">
+          <select id="drugSelect"></select>
+          <select id="dosageSelect"></select>
+        </div>
+        <div class="row">
+          <select id="scheduleType">
+            <option value="daily">Ежедневно</option>
+            <option value="interval">Каждые N дней</option>
+            <option value="weekday">По дням недели</option>
+          </select>
+          <input id="timeOfDay" type="time" value="08:00">
+        </div>
+        <div class="row">
+          <input id="startDate" type="date">
+          <input id="endDate" type="date">
+        </div>
+        <input id="scheduleConfig" placeholder='Конфиг схемы JSON, например {"everyDays":2}'>
+        <input id="intakeFeature" placeholder="Особенности приёма (до/после еды)">
+        <button class="btn primary" onclick="savePrescription()">Сохранить назначение</button>
+      </section>
+
+      <section class="card" id="intakeSection">
+        <h2>Быстрый ввод приёма</h2>
+        <div class="row">
+          <input id="intakeDate" type="date">
+          <input id="intakeTime" type="time" value="08:00">
+        </div>
+        <select id="intakeDrugSelect"></select>
+        <input id="intakeDosage" placeholder="Дозировка (например 1 таблетка)">
+        <textarea id="intakeComment" placeholder="Комментарий"></textarea>
+        <button class="btn success" onclick="quickIntake()">Отметить приём</button>
+      </section>
+
+      <section class="card wide" id="weekSection">
+        <h2>Недельный график</h2>
+        <div class="row">
+          <input id="weekStart" type="date">
+          <button class="btn" onclick="loadWeekSchedule()">Обновить график</button>
+        </div>
+        <div id="weekTable"></div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <?!= include('Client'); ?>
+  </body>
+</html>
