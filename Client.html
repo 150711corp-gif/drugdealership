@@ -1,0 +1,196 @@
+<script>
+  const state = {
+    users: [],
+    drugs: [],
+    dosages: []
+  };
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  function init() {
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('intakeDate').value = today;
+    document.getElementById('startDate').value = today;
+    document.getElementById('weekStart').value = getStartOfWeek(today);
+
+    callApi('apiInit')
+      .then(function (data) {
+        state.users = data.users || [];
+        state.drugs = data.drugs || [];
+        state.dosages = data.dosages || [];
+        renderSelects();
+        loadWeekSchedule();
+      })
+      .catch(showError);
+  }
+
+  function callApi(method) {
+    const args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      google.script.run
+        .withSuccessHandler(function (response) {
+          if (!response || !response.ok) {
+            reject((response && response.error && response.error.message) || 'Ошибка API');
+            return;
+          }
+          resolve(response.data);
+        })
+        .withFailureHandler(function (error) {
+          reject(error.message || 'Сбой соединения');
+        })[method].apply(google.script.run, args);
+    });
+  }
+
+  function renderSelects() {
+    fillSelect('userSelect', state.users, 'Выберите пользователя');
+    fillSelect('drugSelect', state.drugs, 'Выберите препарат');
+    fillSelect('intakeDrugSelect', state.drugs, 'Выберите препарат');
+    fillSelect('dosageSelect', state.dosages, 'Выберите дозировку', function (d) {
+      return d.dosage + ' ' + d.unit;
+    });
+  }
+
+  function fillSelect(id, items, placeholder, labelFn) {
+    const select = document.getElementById(id);
+    select.innerHTML = '<option value="">' + placeholder + '</option>';
+    items.forEach(function (item) {
+      const option = document.createElement('option');
+      option.value = item.id;
+      option.textContent = labelFn ? labelFn(item) : item.name;
+      select.appendChild(option);
+    });
+  }
+
+  function saveUser() {
+    const payload = {
+      id: document.getElementById('userSelect').value || undefined,
+      name: document.getElementById('userName').value.trim(),
+      color: document.getElementById('userColor').value,
+      note: document.getElementById('userNote').value.trim(),
+      active: true
+    };
+    callApi('apiSaveUser', payload)
+      .then(function () {
+        showToast('Профиль сохранён');
+        return callApi('apiInit');
+      })
+      .then(function (data) {
+        state.users = data.users;
+        renderSelects();
+      })
+      .catch(showError);
+  }
+
+  function savePrescription() {
+    const scheduleConfigText = document.getElementById('scheduleConfig').value.trim();
+    let scheduleConfig = {};
+    if (scheduleConfigText) {
+      try {
+        scheduleConfig = JSON.parse(scheduleConfigText);
+      } catch (error) {
+        showError('Неверный JSON в конфиге схемы');
+        return;
+      }
+    }
+
+    const payload = {
+      userId: document.getElementById('userSelect').value,
+      drugId: document.getElementById('drugSelect').value,
+      dosageId: document.getElementById('dosageSelect').value,
+      scheduleType: document.getElementById('scheduleType').value,
+      scheduleConfig: scheduleConfig,
+      timeOfDay: document.getElementById('timeOfDay').value,
+      intakeFeature: document.getElementById('intakeFeature').value.trim(),
+      startDate: document.getElementById('startDate').value,
+      endDate: document.getElementById('endDate').value,
+      companionRule: { enabled: false },
+      controlRule: { enabled: false },
+      status: 'active'
+    };
+
+    callApi('apiSavePrescription', payload)
+      .then(function () {
+        showToast('Назначение сохранено');
+        loadWeekSchedule();
+      })
+      .catch(showError);
+  }
+
+  function quickIntake() {
+    const payload = {
+      date: document.getElementById('intakeDate').value,
+      userId: document.getElementById('userSelect').value,
+      drugId: document.getElementById('intakeDrugSelect').value,
+      dosage: document.getElementById('intakeDosage').value,
+      timeOfDay: document.getElementById('intakeTime').value,
+      takenStatus: 'taken',
+      comment: document.getElementById('intakeComment').value
+    };
+
+    callApi('apiQuickIntake', payload)
+      .then(function () {
+        showToast('Приём отмечен');
+      })
+      .catch(showError);
+  }
+
+  function loadWeekSchedule() {
+    const userId = document.getElementById('userSelect').value || (state.users[0] && state.users[0].id);
+    const weekStart = document.getElementById('weekStart').value;
+    if (!userId || !weekStart) {
+      renderWeekTable([]);
+      return;
+    }
+
+    callApi('apiGetWeekSchedule', userId, weekStart)
+      .then(renderWeekTable)
+      .catch(showError);
+  }
+
+  function renderWeekTable(rows) {
+    const box = document.getElementById('weekTable');
+    if (!rows.length) {
+      box.innerHTML = '<p>Нет данных для выбранной недели.</p>';
+      return;
+    }
+
+    const html = [
+      '<table><thead><tr><th>Дата</th><th>Время</th><th>Препарат</th><th>Доза</th><th>Особенности</th><th>Маркер</th></tr></thead><tbody>'
+    ];
+
+    rows.forEach(function (row) {
+      html.push('<tr>' +
+        '<td>' + row.date + '</td>' +
+        '<td>' + row.timeOfDay + '</td>' +
+        '<td>' + row.drugName + '</td>' +
+        '<td>' + row.dosageText + '</td>' +
+        '<td>' + (row.intakeFeature || '') + '</td>' +
+        '<td>' + (row.marker || '') + '</td>' +
+        '</tr>');
+    });
+
+    html.push('</tbody></table>');
+    box.innerHTML = html.join('');
+  }
+
+  function getStartOfWeek(isoDate) {
+    const date = new Date(isoDate + 'T00:00:00');
+    const day = date.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    date.setDate(date.getDate() + diff);
+    return date.toISOString().slice(0, 10);
+  }
+
+  function showToast(text) {
+    const toast = document.getElementById('toast');
+    toast.textContent = text;
+    toast.style.display = 'block';
+    setTimeout(function () {
+      toast.style.display = 'none';
+    }, 2400);
+  }
+
+  function showError(message) {
+    showToast('Ошибка: ' + message);
+  }
+</script>
